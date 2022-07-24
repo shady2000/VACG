@@ -1,10 +1,4 @@
-# PBRL
-
-## Introduction
-
-This is a Pytorch implementation for our paper on 
-
-**Pessimistic Bootstrapping for Uncertainty-Driven Offline Reinforcement Learning, ICLR 2022**.
+# VACG
 
 ## Prerequisites
 
@@ -23,7 +17,7 @@ pip install -e .
 For running PBRL on the MuJoCo environments, run:
 
 ```
-python examples/pevi_mujoco.py --env walker2d-medium-v2 --gpu 0
+python examples/pevi_mujoco.py --env bullet-walker2d-medium-v2 --gpu 0
 ```
 
 For running PBRL-Prior on the MuJoCo environments, run:
