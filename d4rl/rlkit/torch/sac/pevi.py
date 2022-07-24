@@ -21,8 +21,8 @@ class PEVITrainer(TorchTrainer):
 			env_name,
 			policy,
 			qfs,
+			#vae, #VAE additions
 			target_qfs,
-
 			discount=0.99,
 			reward_scale=1.0,
 
@@ -54,18 +54,22 @@ class PEVITrainer(TorchTrainer):
 			num_random=10,
 			with_lagrange=False,
 			lagrange_thresh=0.0,  # CQL new end
+			policy_name = "PBRL",
 	):
 		super().__init__()
-		assert env_name in ["halfcheetah-random-v2", "halfcheetah-medium-v2", "halfcheetah-expert-v2", "halfcheetah-medium-expert-v2",
-			"halfcheetah-medium-replay-v2", "walker2d-random-v2", "walker2d-medium-v2", "walker2d-expert-v2",
-			"walker2d-medium-expert-v2", "walker2d-medium-replay-v2", "hopper-random-v2", "hopper-medium-v2",
-			"hopper-expert-v2", "hopper-medium-expert-v2", "hopper-medium-replay-v2"]
-
+		# assert env_name in ["halfcheetah-random-v2", "halfcheetah-medium-v2", "halfcheetah-expert-v2", "halfcheetah-medium-expert-v2",
+		# 	"halfcheetah-medium-replay-v2", "walker2d-random-v2", "walker2d-medium-v2", "walker2d-expert-v2",
+		# 	"walker2d-medium-expert-v2", "walker2d-medium-replay-v2", "hopper-random-v2", "hopper-medium-v2",
+		# 	"hopper-expert-v2", "hopper-medium-expert-v2", "hopper-medium-replay-v2"]
 		self.env_name = env_name
+		self.policy_name = policy_name
 		self.env = env
 		self.policy = policy
 		self.qfs = qfs
 		self.target_qfs = target_qfs
+
+		#self.vae = vae #gradpen VAE additions
+
 		self.soft_target_tau = soft_target_tau  # 0.005
 
 		self.use_automatic_entropy_tuning = use_automatic_entropy_tuning
@@ -383,4 +387,3 @@ class PEVITrainer(TorchTrainer):
 			qfs=self.qfs,
 			target_qf1=self.target_qfs,
 		)
-

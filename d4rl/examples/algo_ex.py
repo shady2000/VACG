@@ -4,8 +4,8 @@ from rlkit.envs.wrappers import NormalizedBoxEnv
 from rlkit.launchers.launcher_util import setup_logger
 from rlkit.samplers.data_collector import MdpPathCollector, CustomMDPPathCollector
 from rlkit.torch.sac.policies import TanhGaussianPolicy, MakeDeterministic
-from rlkit.torch.sac.pevi import PEVITrainer
-from rlkit.torch.networks import FlattenMlp, RandomPrior
+from rlkit.torch.sac.algo import AlgoTrainer
+from rlkit.torch.networks import FlattenMlp, RandomPrior#, VAE #VAE additions
 from rlkit.torch.torch_rl_algorithm import TorchBatchRLAlgorithm
 import torch
 import argparse
@@ -16,7 +16,6 @@ import h5py
 import d4rl
 import gym
 import random
-
 
 def load_hdf5(dataset, replay_buffer):
     replay_buffer._observations = dataset['observations']
@@ -78,11 +77,18 @@ def experiment(variant, log_dir=None):
         print ("DEBUGG  ", d4rl.qlearning_dataset(eval_env))
         load_hdf5(d4rl.qlearning_dataset(eval_env), replay_buffer)  # use this
 
-    trainer = PEVITrainer(
+    #vae = VAE(state_dim=obs_dim, action_dim=action_dim, latent_dim=args.vae_latent,max_action=eval_env.action_space.high[0])
+    #gradpen VAE additions 
+  
+    trainer = AlgoTrainer(
         env=eval_env,
         policy=policy,
         qfs=qfs,
         target_qfs=target_qfs,
+        qloss_version=args.qloss_version,
+        qpen_version=args.qpen_version,
+        qtarget_version=args.qtarget_version,
+        #vae=vae, #VAE additions
         **variant['trainer_kwargs'])
 
     algorithm = TorchBatchRLAlgorithm(
@@ -97,6 +103,7 @@ def experiment(variant, log_dir=None):
         variant=variant,
         **variant['algorithm_kwargs']
     )
+
     algorithm.to(ptu.device)
     algorithm.train()
 
@@ -178,6 +185,12 @@ if __name__ == "__main__":
     parser.add_argument('--prior', action='store_true', default=False)        # if use randomized prior function
     parser.add_argument('--prior_scale', type=float, default=1.0)             # ratio of randomized prior function
 
+    #gradpen additions
+    parser.add_argument('--num_ood_actions', type=int, default=10)
+    #parser.add_argument('--vae-latent', type=int, default=10) #VAE additions
+    parser.add_argument('--qloss_version', type=int, default=1)
+    parser.add_argument('--qpen_version', type=int, default=1)
+    parser.add_argument('--qtarget_version', type=int, default=1)
     args = parser.parse_args()
     enable_gpus(args.gpu)
 
@@ -194,6 +207,8 @@ if __name__ == "__main__":
     variant['trainer_kwargs']['decay_factor'] = args.decay_factor
     variant['trainer_kwargs']['env_name'] = args.env
     variant['trainer_kwargs']['prior'] = args.prior
+
+    #gradpen additions
 
     if args.lagrange_thresh < 0.0:
         variant['trainer_kwargs']['with_lagrange'] = False

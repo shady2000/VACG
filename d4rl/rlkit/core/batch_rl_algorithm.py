@@ -1,5 +1,6 @@
 import abc
 import copy
+from tqdm import tqdm
 # Visualization
 import matplotlib
 from rlkit.torch import pytorch_util as ptu
@@ -16,6 +17,8 @@ import torch
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from torch.utils.tensorboard import SummaryWriter
+import os 
 
 def get_flat_params(model):
     params = []
@@ -23,7 +26,6 @@ def get_flat_params(model):
         # import ipdb; ipdb.set_trace()
         params.append(param.data.cpu().numpy().reshape(-1))
     return np.concatenate(params)
-
 
 def set_flat_params(model, flat_params, trainable_only=True):
     idx = 0
@@ -126,6 +128,14 @@ class BatchRLAlgorithm(BaseRLAlgorithm, metaclass=abc.ABCMeta):
             self.replay_buffer.add_paths(init_expl_paths)
             self.expl_data_collector.end_epoch(-1)
 
+        rewards_writer = SummaryWriter(log_dir=f"./runs/{self.trainer.env_name}/{self.trainer.policy_name}", comment=f"{self.trainer.env_name}")
+
+        if (not os.path.exists(f"./{self.trainer.env_name}")):
+            os.makedirs(f"./{self.trainer.env_name}")
+        
+        if (not os.path.exists(f"./{self.trainer.env_name}/{self.trainer.policy_name}")):
+            os.makedirs(f"./{self.trainer.env_name}/{self.trainer.policy_name}")
+
         for epoch in gt.timed_for(range(self._start_epoch, self.num_epochs), save_itrs=True):  # 循环 epochs
             if self.q_learning_alg:          # 默认是 False
                 policy_fn = self.policy_fn
@@ -149,7 +159,7 @@ class BatchRLAlgorithm(BaseRLAlgorithm, metaclass=abc.ABCMeta):
                     self.replay_buffer.add_paths(new_expl_paths)
                     gt.stamp('data storing', unique=False)
 
-                elif self.eval_both:   # 执行该分支
+                elif self.eval_both:   
                     # Now evaluate the policy here:
                     policy_fn = self.policy_fn
                     if self.trainer.discrete:
@@ -158,17 +168,28 @@ class BatchRLAlgorithm(BaseRLAlgorithm, metaclass=abc.ABCMeta):
                         self.max_path_length, self.num_eval_steps_per_epoch, discard_incomplete_paths=True)
                     gt.stamp('policy fn evaluation')
 
-                # 开始训练
+                # Start training
                 self.training_mode(True)
-                for _ in range(self.num_trains_per_train_loop):    # 循环1000次
-                    # 采样样本, train_data 的 key 包括 observations, actions, rewards, terminals, next_observations
+                for _ in tqdm(range(self.num_trains_per_train_loop)):    # 1000 cycles
                     train_data = self.replay_buffer.random_batch(self.batch_size)
-                    self.trainer.train(train_data)
+                    self.trainer.train(train_data) #train here
                 gt.stamp('training', unique=False)
                 self.training_mode(False)
 
+            temp_reward = self.eval_policy_custom(self.trainer.policy)
+            rewards_writer.add_scalar(f"PBRL-{self.trainer.env_name}-reward", temp_reward, epoch)
+
+            models_path = f"./{self.trainer.env_name}/{self.trainer.policy_name}" 
+            if (epoch%10 == 0):
+                torch.save(self.trainer.policy.state_dict(), f"{models_path}/policy_{epoch}.pt")
+                for i in range(self.trainer.ensemble):
+                    torch.save(self.trainer.qfs[i].state_dict(), f"{models_path}/qfs_{epoch}.pt")
+                    torch.save(self.trainer.target_qfs[i].state_dict(), f"{models_path}/target_qfs_{epoch}.pt")
+                print(f"\n ========================  Saved models to {models_path} ======================== \n ")
+
             # _end_epoch 完成了对日志的记录和输出
             self._end_epoch(epoch)
+            print(f"Finished epoch {epoch} of algorithm {self.trainer.policy_name} on environment {self.trainer.env_name}")
 
             # import ipdb; ipdb.set_trace()
             ## After epoch visualize
